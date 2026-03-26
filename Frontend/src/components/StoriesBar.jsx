@@ -3,13 +3,14 @@ import { dummyStoriesData } from '../assets/assets'
 import { Plus } from 'lucide-react'
 import moment from 'moment'
 import StoryModal from './StoryModal'
+import StoryViewer from './StoryViewer'
 
 
 function StoriesBar() {
 
     const [stories, setStories] = useState([])
  const [showModal, setShowModal] = useState(false)
- const [viewStories, setViewStories] = useState(null)
+ const [viewStory, setViewStory] = useState(null)
 
     const fetchStories = async () => {
         setStories(dummyStoriesData)
@@ -23,7 +24,7 @@ function StoriesBar() {
         <div className='w-screen sm:w-[calc(100vw-240px)] lg:max-w-2xl no-scrollbar overflow-x-auto px-4'>
 
             <div className='flex gap-4 pb-5 '>
-                <div onClick = {()=> setShowModal(true)} className='rounded-lg shadow-sm min-w-30 max-w-30 max-h-40 aspect-3/4 cursor-pointer hover:shadow-lg transiton-all duration-200
+                <div onClick = {()=> setShowModal(true)} className='rounded-lg shadow-sm min-w-30 max-w-30 max-h-40 aspect-3/4 cursor-pointer hover:shadow-lg transition-all duration-200
                  border-2 border-dashed border-indigo-300 bg-linear-to-b from-indigo-50 to-white'>
                     <div className='h-full flex flex-col items-center justify-center p-4'>
                         <div className='size-10 bg-indigo-500 rounded-full flex items-center justify-center mb-3'>
@@ -35,6 +36,7 @@ function StoriesBar() {
                     stories.map((story, index) => (
                         <div
                             key={index}
+                            onClick={() => setViewStory(story)}
                             className='relative rounded-lg shadow min-w-30 max-w-30 max-h-40 cursor-pointer hover:shadow-lg transition-all duration-200
                              bg-gradient-to-b from-indigo-500 to-purple-600 hover:from-indigo-700 hover:to-purple-800 active:scale-95'
                         >
@@ -54,20 +56,23 @@ function StoriesBar() {
                                 {moment(story.createdAt).fromNow()}
                             </p>
                             {
-                                story.media_tyoe !== 'text' && (
-                                             <div className='absolute inset-0 z-1 rounded-lg
-                                             bg-black overflow-hidden'>
-                                                 {
-                                stories.media_tyoe ==="image" ?
-                                <img src={story.media_url} alt="" className ='h-full w-full
-                                object-cover hover:scale-110 transition durataion-500 opacity-70
-                                hover:opacity-80'/>
-                                :
-                                <video src ={story.media_url} className = 'h-full w-full object-cover hover:scale-110
-                                transition duration-500 opacity-70 hover:opacity-80'></video>
-                            }
-                                             </div>
-
+                                story.media_type !== 'text' && (
+                                    <div className='absolute inset-0 z-1 rounded-lg bg-black overflow-hidden'>
+                                        {
+                                            story.media_type === 'image' ? (
+                                                <img
+                                                    src={story.media_url}
+                                                    alt=""
+                                                    className='h-full w-full object-cover hover:scale-110 transition duration-500 opacity-70 hover:opacity-80'
+                                                />
+                                            ) : (
+                                                <video
+                                                    src={story.media_url}
+                                                    className='h-full w-full object-cover hover:scale-110 transition duration-500 opacity-70 hover:opacity-80'
+                                                />
+                                            )
+                                        }
+                                    </div>
                                 )
                             }
                         </div>
@@ -75,9 +80,9 @@ function StoriesBar() {
 
                 }
             </div>
-            {showModal && <StoryModal setShowModal ={setShowModal} fetchStories={fetchStories} />
+            {showModal && <StoryModal setShowModal ={setShowModal} fetchStories={fetchStories} />}
+             {viewStory && <StoryViewer viewStory={viewStory} setViewStory={setViewStory}/>}
 
-            }
         </div>
     )
 }
