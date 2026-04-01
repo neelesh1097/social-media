@@ -2,6 +2,7 @@ import { Inngest } from "inngest";
 import User from "../modals/User.js";
 
 // Create a client to send and receive events
+//inggest function
 export const inngest = new Inngest({ id: "neelesh1097" });
 
 // inngest function to save user data
