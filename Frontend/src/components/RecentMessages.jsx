@@ -2,17 +2,43 @@ import React,{useEffect,useState} from 'react'
 import { dummyRecentMessagesData } from '../assets/assets'
 import {Link} from 'react-router-dom'
 import moment from'moment';
+import { useAuth } from '@clerk/react'
+
+const API_RECENT = '/api/messages/recent'
 
 const RecentMessages = () => {
 
     const [messages , setMessages] = useState([])
 
+    const { getToken } = useAuth()
+
     const fetchRecentMessages = async () => {
-        setMessages(dummyRecentMessagesData)
+        try {
+            const token = await getToken()
+            const res = await fetch(API_RECENT, { headers: { Authorization: `Bearer ${token}` } })
+            const data = await res.json()
+            if (data.success) {
+                // map to expected shape if backend returns conversations
+                setMessages(data.conversations?.map(c => ({
+                    _id: c.lastMessage._id,
+                    from_user_id: c.user,
+                    text: c.lastMessage.content || '',
+                    createdAt: c.lastMessage.createdAt,
+                    seen: c.lastMessage.seen
+                })) || [])
+            } else {
+                setMessages(dummyRecentMessagesData)
+            }
+        } catch (e) {
+            console.error(e)
+            setMessages(dummyRecentMessagesData)
+        }
     }
 
     useEffect(() => {
       fetchRecentMessages()
+      const t = setInterval(fetchRecentMessages, 5000)
+      return () => clearInterval(t)
     }, [])
 
   return (

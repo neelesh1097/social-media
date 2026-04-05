@@ -1,16 +1,49 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { dummyUserData } from '../assets/assets'
 import { MapPin, MessageCircle, Plus, UserPlus } from 'lucide-react'
+import { useAuth } from '@clerk/react'
 
 const UserCard = ({ user }) => {
     const currentUser = dummyUserData
+    const [following, setFollowing] = useState(currentUser?.following || [])
+    const [connections, setConnections] = useState(currentUser?.connections || [])
+
+    const { getToken } = useAuth()
 
     const handleFollow = async () => {
-
+        try {
+            const isFollowing = following.includes(user._id)
+            const endpoint = isFollowing ? '/api/user/unfollow' : '/api/user/follow'
+            const token = await getToken()
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ id: user._id })
+            })
+            const data = await res.json()
+            if (data.success) {
+                setFollowing(prev => isFollowing ? prev.filter(id => id !== user._id) : [...prev, user._id])
+            }
+        } catch (e) {
+            console.error(e)
+        }
     }
 
     const handleConnectionRequest = async () => {
-
+        try {
+            const token = await getToken()
+            const res = await fetch('/api/connections/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ toUserId: user._id })
+            })
+            const data = await res.json()
+            if (data.success) {
+                setConnections(prev => [...prev, user._id])
+            }
+        } catch (e) {
+            console.error(e)
+        }
     }
     return (
         <div key={user._id} className='p-4 pt-6 flex flex-col justify-between w-72 shadow border border-gray-200 rounded-md'>

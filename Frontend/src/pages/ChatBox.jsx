@@ -2,12 +2,18 @@ import React, { useEffect, useState, useRef } from 'react'
 import { dummyMessagesData, dummyUserData } from '../assets/assets'
 import { useParams } from 'react-router-dom'
 import { ImageIcon ,SendHorizontal } from 'lucide-react'
+import { useAuth } from '@clerk/react'
+
+const API_SEND = '/api/messages/send'
+const API_CONV = (id) => `/api/messages/conversation/${id}`
+const API_MARK_SEEN = '/api/messages/mark-seen'
 
 const ChatBox = () => {
 
   const { id } = useParams()
+  const { getToken } = useAuth()
   const [messages, setMessages] = useState(() => (
-    
+
     [...dummyMessagesData].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
   ))
   const [text, setText] = useState('')
@@ -18,26 +24,64 @@ const ChatBox = () => {
   const sendMessage = async () => {
     if (!text.trim() && !image) return
 
-    const newMsg = {
-      _id: `tmp_${Date.now()}`,
-      from_user_id: user._id,
-      to_user_id: id || 'user_2',
-      text: text.trim(),
-      message_type: image ? 'image' : 'text',
-      media_url: image ? URL.createObjectURL(image) : '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      seen: false
-    }
+    try {
+      const token = await getToken()
+      // send via API
+      const form = new FormData()
+      form.append('to', id)
+      form.append('content', text.trim())
+      if (image) form.append('attachments', image)
 
-    setMessages((prev) => [...prev, newMsg])
-    setText('')
-    setImage(null)
+      const res = await fetch(API_SEND, { method: 'POST', body: form, headers: { Authorization: `Bearer ${token}` } })
+      const data = await res.json()
+      if (data.success) {
+        setMessages(prev => [...prev, {
+          _id: data.message._id,
+          from_user_id: data.message.from,
+          to_user_id: data.message.to,
+          text: data.message.content,
+          createdAt: data.message.createdAt,
+          seen: data.message.seen
+        }])
+        setText('')
+        setImage(null)
+      }
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // load conversation when id changes
+  useEffect(() => {
+    const load = async () => {
+      if (!id) return
+      try {
+        const token = await getToken()
+        const res = await fetch(API_CONV(id), { headers: { Authorization: `Bearer ${token}` } })
+        const data = await res.json()
+        if (data.success) {
+          setMessages(data.messages.map(m => ({
+            _id: m._id,
+            from_user_id: m.from,
+            to_user_id: m.to,
+            text: m.content,
+            message_type: m.attachments && m.attachments.length ? 'image' : 'text',
+            media_url: m.attachments && m.attachments[0] ? m.attachments[0].url : '',
+            createdAt: m.createdAt,
+            seen: m.seen
+          })))
+
+          // mark messages as seen
+          await fetch(API_MARK_SEEN, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ from: id }) })
+        }
+      } catch (e) { console.error(e) }
+    }
+    load()
+  }, [id])
 
 
   return user && (
