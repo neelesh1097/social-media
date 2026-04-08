@@ -1,11 +1,12 @@
 import React ,{useState, useEffect}from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { dummyPostsData, dummyUserData } from '../assets/assets'
 import Loading from '../components/Loading'
 import UserProfileInfo from '../components/UserProfileInfo'
 import PostCard from '../components/PostCard'
 import moment from 'moment'
 import ProfileModal from '../components/ProfileModal'
+import { useAuth } from '@clerk/react'
+import { getApiUrl } from '../lib/api'
 function Profile() {
 
   const {profileId} = useParams();
@@ -13,10 +14,24 @@ function Profile() {
   const [posts, setPosts] = useState([])
   const [activeTab, setActiveTab] = useState('posts')
   const [showEdit, setShowEdit] = useState(false)
+  const { getToken } = useAuth()
 
   const fetchUser = async () => {
-    setUsers(dummyUserData)
-    setPosts(dummyPostsData)
+    try {
+      const token = await getToken()
+      if (profileId) {
+        const res = await fetch(getApiUrl('/api/user/profiles'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ profileId }) })
+        const data = await res.json()
+        if (data.success) {
+          setUsers(data.profile)
+          setPosts(data.posts || [])
+        }
+      } else {
+        const res = await fetch(getApiUrl('/api/user/data'), { headers: { Authorization: `Bearer ${token}` } })
+        const data = await res.json()
+        if (data.success) setUsers(data.user)
+      }
+    } catch (e) { console.error(e) }
   }
 
   useEffect(() => {
@@ -46,11 +61,11 @@ function Profile() {
                ))}
                </div>
                {/* posts */}
-               {activeTab === 'posts' && (
-                <div className='mt-6 flex flex-col items-center gap-6'>
-                  {posts.map((post) => <PostCard key={posts._id} post={post} />)}
-                </div>
-               )}
+              {activeTab === 'posts' && (
+                      <div className='mt-6 flex flex-col items-center gap-6'>
+                        {posts.map((post) => <PostCard key={post._id} post={post} />)}
+                      </div>
+                     )}
 
                {/* media */}
                {activeTab === 'media' && (
@@ -72,7 +87,7 @@ function Profile() {
         </div>
       </div>
       {/* Edit Profile Modal */}
-      {showEdit && <ProfileModal setShowModal={setShowModal} />}
+      {showEdit && <ProfileModal setShowModal={setShowEdit} />}
     </div>
   ) : (<Loading />)
 }

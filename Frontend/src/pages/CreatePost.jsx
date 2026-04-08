@@ -1,18 +1,44 @@
 import React, {useState} from 'react'
-import {dummyUserData} from '../assets/assets'
 import {X ,Image} from 'lucide-react'
 import {toast} from 'react-hot-toast'
+import { useUser } from '@clerk/react'
+import { getApiUrl, apiFetch } from '../lib/api'
+import { useNavigate } from 'react-router-dom'
 
 const CreatePost = () => {
 
   const [content ,setContent] =useState('')
-  const [images ,setImages] =useState('')
+  const [images ,setImages] =useState([])
   const [loading,setLoading] =useState(false)
-
-  const user = dummyUserData;
+  const { user } = useUser()
+  const navigate = useNavigate()
 
   const handleSubmit = async() => {
+    if (!content.trim() && images.length === 0) return
+    setLoading(true)
+    try {
+      const form = new FormData()
+      form.append('content', content)
+      form.append('post_type', images.length > 0 ? 'image' : 'text')
+      images.forEach((img) => form.append('images', img))
 
+      const res = await apiFetch('/api/post/add', { method: 'POST', body: form })
+      const data = await res.json()
+      if (data.success) {
+        setContent('')
+        setImages([])
+        toast.success('Post created!')
+        setTimeout(() => navigate('/'), 1500) // go back to feed
+        return data.post
+      } else {
+        throw new Error(data.message || 'post failed')
+      }
+    } catch (e) {
+      toast.error(e.message)
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
   }
   return (
     <div className='min-h-screen bg-gradient-to-b from-slate-50 to-white'>
@@ -53,10 +79,10 @@ const CreatePost = () => {
                {/* bottom bar */}
                <div className='flex items-center justify-between pt-3 border-t 
                border-gray-300'>
-                 <label htmlFor="images" className='flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition cursor-pointer'>
+                <label htmlFor="images" className='flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition cursor-pointer'>
                   <Image className='size-6' />
-                 </label>
-                 <input type="file" id='images' accept='images' hidden multiple onChange={(e)=> setImages([...images, ...e.target.files])}/>
+                  </label>
+                  <input type="file" id='images' accept='image/*' hidden multiple onChange={(e)=> setImages([...images, ...Array.from(e.target.files)])}/>
 
                  <button disabled={loading} onClick={() => toast.promise(handleSubmit(),
                  {

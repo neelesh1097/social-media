@@ -1,24 +1,26 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { dummyMessagesData, dummyUserData } from '../assets/assets'
+import { dummyMessagesData } from '../assets/assets'
 import { useParams } from 'react-router-dom'
 import { ImageIcon ,SendHorizontal } from 'lucide-react'
 import { useAuth } from '@clerk/react'
+import { useUser } from '@clerk/react'
+import { getApiUrl } from '../lib/api'
 
-const API_SEND = '/api/messages/send'
-const API_CONV = (id) => `/api/messages/conversation/${id}`
-const API_MARK_SEEN = '/api/messages/mark-seen'
+const API_SEND = getApiUrl('/api/messages/send')
+const API_CONV = (id) => getApiUrl(`/api/messages/conversation/${id}`)
+const API_MARK_SEEN = getApiUrl('/api/messages/mark-seen')
 
 const ChatBox = () => {
 
   const { id } = useParams()
   const { getToken } = useAuth()
+  const { user } = useUser()
   const [messages, setMessages] = useState(() => (
 
     [...dummyMessagesData].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
   ))
   const [text, setText] = useState('')
   const [image, setImage] = useState(null)
-  const [user] = useState(dummyUserData)
   const messagesEndRef = useRef(null)
 
   const sendMessage = async () => {
@@ -54,6 +56,69 @@ const ChatBox = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Setup Server-Sent Events for incoming messages
+  useEffect(() => {
+    if (!user || !user.id) return
+    let es = null
+    let stopped = false
+    let attempts = 0
+    const maxAttempts = 6
+    const connect = async () => {
+      if (stopped) return
+      attempts += 1
+      try {
+        const authToken = await getToken()
+        const tokenRes = await fetch(getApiUrl('/api/messages/sse/token'), { method: 'POST', headers: { Authorization: `Bearer ${authToken}` } })
+        const tokenData = await tokenRes.json()
+        if (!tokenData.success) {
+          console.error('failed to get sse token', tokenData.message)
+          // retry with backoff
+          if (attempts < maxAttempts) setTimeout(connect, Math.min(30000, 500 * attempts))
+          return
+        }
+
+        es = new EventSource(getApiUrl(`/api/messages/sse?token=${tokenData.token}`))
+
+        es.addEventListener('message', (e) => {
+          try {
+            const parsed = JSON.parse(e.data)
+            if (parsed && parsed.message) {
+              setMessages(prev => [...prev, {
+                _id: parsed.message._id,
+                from_user_id: parsed.message.from,
+                to_user_id: parsed.message.to,
+                text: parsed.message.content,
+                createdAt: parsed.message.createdAt,
+                seen: parsed.message.seen
+              }])
+            }
+          } catch (err) { console.error('sse parse', err) }
+        })
+
+        es.addEventListener('connected', () => { attempts = 0 })
+
+        es.onerror = (err) => {
+          console.error('SSE error', err)
+          try { es.close() } catch (e) {}
+          es = null
+          if (!stopped && attempts < maxAttempts) {
+            const delay = Math.min(30000, 500 * attempts)
+            setTimeout(connect, delay)
+          }
+        }
+      } catch (err) {
+        console.error('sse setup error', err)
+        if (!stopped && attempts < maxAttempts) setTimeout(connect, Math.min(30000, 500 * attempts))
+      }
+    }
+
+    connect()
+    return () => {
+      stopped = true
+      try { es && es.close() } catch (e) {}
+    }
+  }, [user])
 
   // load conversation when id changes
   useEffect(() => {

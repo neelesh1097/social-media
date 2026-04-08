@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users, UserPlus, UserCheck, UserRoundPen, MessageSquare } from 'lucide-react'
 import {
@@ -9,16 +9,50 @@ import {
 } from '../assets/assets'
 
 
+import { useAuth } from '@clerk/react'
+
 const Connection = () => {
   const [currentTab, setCurrentTab] = useState('Followers')
+  const { getToken } = useAuth()
   const navigate = useNavigate()
 
+  const [pendingList, setPendingList] = useState(pendingConnections)
+  const [connectionsList, setConnectionsList] = useState(connections)
+  const [followersList, setFollowersList] = useState(followers)
+  const [followingList, setFollowingList] = useState(following)
+
   const dataArray = [
-    { label: 'Followers', value: followers, icon: Users },
-    { label: 'Following', value: following, icon: UserCheck },
-    { label: 'Pending', value: pendingConnections, icon: UserRoundPen },
-    { label: 'Connections', value: connections, icon: UserPlus },
+    { label: 'Followers', value: followersList, icon: Users },
+    { label: 'Following', value: followingList, icon: UserCheck },
+    { label: 'Pending', value: pendingList, icon: UserRoundPen },
+    { label: 'Connections', value: connectionsList, icon: UserPlus },
   ]
+
+  useEffect(() => {
+    // placeholder: could fetch lists from backend here
+  }, [])
+
+  const handleAccept = async (fromUserId) => {
+    try {
+      const token = await getToken()
+      const res = await fetch(getApiUrl('/api/connections/accept'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ fromUserId })
+      })
+      const data = await res.json()
+      if (data.success) {
+        // remove from pending and add to connections
+        setPendingList((p) => p.filter((u) => u._id !== fromUserId))
+        const accepted = pendingList.find((u) => u._id === fromUserId)
+        if (accepted) setConnectionsList((c) => [accepted, ...c])
+      } else {
+        console.error('accept failed', data.message)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
   return (
     <div className='min-h-screen bg-slate-50'>
       <div className='mx-w-6xl mx-suto p-6'>
@@ -28,13 +62,12 @@ const Connection = () => {
         </div>
         {/* Counts */}
         <div className='mb-8 flex flex-wrap gap-6'>
-          {dataArray.map((item, index) => {
-            <div key={index} className='flex flex-col items-center justify-center gap-1 
-                border h-20 w-40 border-gray-200 bg-white shadow rounded-md'>
-              <b>{item.value.length}</b>
+          {dataArray.map((item, index) => (
+            <div key={index} className='flex flex-col items-center justify-center gap-1 border h-20 w-40 border-gray-200 bg-white shadow rounded-md'>
+              <b>{item.value?.length || 0}</b>
               <p className='text-slate-600'>{item.label}</p>
             </div>
-          })}
+          ))}
         </div>
 
         {/* tabs */}
@@ -58,7 +91,7 @@ const Connection = () => {
 
         <div className='flex flex-wrap gap-6 mt-6'>
              {dataArray.find((item) =>item.label === currentTab).value.map((user) => (
-              <div key={user._id} className ='w-full max-w-88 flex gap-5 p-6 bg-shite shadow rounded-md'>
+              <div key={user._id} className ='w-full max-w-88 flex gap-5 p-6 bg-white shadow rounded-md'>
                <img src={user.profile_picture} alt="" srcset="" className='rounded-full w-12 h-12 shadow-md mx-auto'/>
                <div className='flex-1'>
                 <p className='font-medium text-slate-700'>{user.full_name}</p>
@@ -66,27 +99,27 @@ const Connection = () => {
                  <p className='text-slate-500'>{user.bio.slice(0 ,30)}...</p>
                  <div className='flex max-sm:flex-col gap-2 mt-4'>
                   {
-                    <button onClick={()=> navigate('/profile/${user._id}')} className='w-full p-2 text:sm rounded bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 active:scale-95 transition text-white cursor-pointer'>
+                    <button onClick={()=> navigate(`/profile/${user._id}`)} className='w-full p-2 text-sm rounded bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 active:scale-95 transition text-white cursor-pointer'>
                      View Profile
                     </button>
                   }
                   {
                     currentTab === 'Following' && (
-                      <button className='w-full p-2 text-sm rounded bg-slate-100 hover:bg-slate-200 text-vlack active:scale-95 transition cursor-pointer'>
+                      <button className='w-full p-2 text-sm rounded bg-slate-100 hover:bg-slate-200 text-black active:scale-95 transition cursor-pointer'>
                         Unfollow
                       </button>
                     )
                   }
                    {
                     currentTab === 'Pending' && (
-                      <button className='w-full p-2 text-sm rounded bg-slate-100 hover:bg-slate-200 text-vlack active:scale-95 transition cursor-pointer'>
+                      <button onClick={() => handleAccept(user._id)} className='w-full p-2 text-sm rounded bg-slate-100 hover:bg-slate-200 text-black active:scale-95 transition cursor-pointer'>
                        Accept
                       </button>
                     )
                   }
                    {
-                    currentTab === 'connections' && (
-                      <button onClick={() => navigate('/messages/${user._id}')} className='w-full p-2 text-sm rounded bg-slate-100 hover:bg-slate-200 text-vlack active:scale-95 transition cursor-pointer'>
+                    currentTab === 'Connections' && (
+                      <button onClick={() => navigate(`/message/${user._id}`)} className='w-full p-2 text-sm rounded bg-slate-100 hover:bg-slate-200 text-black active:scale-95 transition cursor-pointer'>
                         <MessageSquare className='w-4 h-4'/>
                       Message
                       </button>

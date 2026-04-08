@@ -1,14 +1,15 @@
+import { getApiUrl } from '../lib/api'
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 
 export const fetchUser = createAsyncThunk('user/fetch', async ({ token }, thunkAPI) => {
-  const res = await fetch('/api/user/data', { headers: { Authorization: `Bearer ${token}` } })
+  const res = await fetch(getApiUrl('/api/user/data'), { headers: { Authorization: `Bearer ${token}` } })
   const data = await res.json()
   if (!data.success) throw new Error(data.message || 'Failed to fetch user')
   return data.user
 })
 
 export const updateUser = createAsyncThunk('user/update', async ({ token, form }, thunkAPI) => {
-  const res = await fetch('/api/user/update', { method: 'POST', body: form, headers: { Authorization: `Bearer ${token}` } })
+  const res = await fetch(getApiUrl('/api/user/update'), { method: 'POST', body: form, headers: { Authorization: `Bearer ${token}` } })
   const data = await res.json()
   if (!data.success) throw new Error(data.message || 'Failed to update user')
   return data.user

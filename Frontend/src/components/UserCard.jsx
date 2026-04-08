@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { getApiUrl } from '../lib/api'
 import { dummyUserData } from '../assets/assets'
 import { MapPin, MessageCircle, Plus, UserPlus } from 'lucide-react'
 import { useAuth } from '@clerk/react'
@@ -13,7 +14,7 @@ const UserCard = ({ user }) => {
     const handleFollow = async () => {
         try {
             const isFollowing = following.includes(user._id)
-            const endpoint = isFollowing ? '/api/user/unfollow' : '/api/user/follow'
+            const endpoint = isFollowing ? getApiUrl('/api/user/unfollow') : getApiUrl('/api/user/follow')
             const token = await getToken()
             const res = await fetch(endpoint, {
                 method: 'POST',
@@ -32,7 +33,7 @@ const UserCard = ({ user }) => {
     const handleConnectionRequest = async () => {
         try {
             const token = await getToken()
-            const res = await fetch('/api/connections/send', {
+            const res = await fetch(getApiUrl('/api/connections/send'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ toUserId: user._id })

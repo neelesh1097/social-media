@@ -1,28 +1,29 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
+import { getApiUrl } from '../lib/api'
 
 export const fetchRecent = createAsyncThunk('messages/fetchRecent', async ({ token }) => {
-  const res = await fetch('/api/messages/recent', { headers: { Authorization: `Bearer ${token}` } })
+  const res = await fetch(getApiUrl('/api/messages/recent'), { headers: { Authorization: `Bearer ${token}` } })
   const data = await res.json()
   if (!data.success) throw new Error(data.message || 'Failed')
   return data.conversations
 })
 
 export const fetchConversation = createAsyncThunk('messages/fetchConversation', async ({ token, id }) => {
-  const res = await fetch(`/api/messages/conversation/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+  const res = await fetch(getApiUrl(`/api/messages/conversation/${id}`), { headers: { Authorization: `Bearer ${token}` } })
   const data = await res.json()
   if (!data.success) throw new Error(data.message || 'Failed')
   return { id, messages: data.messages }
 })
 
 export const sendMessage = createAsyncThunk('messages/send', async ({ token, form }, thunkAPI) => {
-  const res = await fetch('/api/messages/send', { method: 'POST', body: form, headers: { Authorization: `Bearer ${token}` } })
+  const res = await fetch(getApiUrl('/api/messages/send'), { method: 'POST', body: form, headers: { Authorization: `Bearer ${token}` } })
   const data = await res.json()
   if (!data.success) throw new Error(data.message || 'Failed')
   return data.message
 })
 
 export const markSeen = createAsyncThunk('messages/markSeen', async ({ token, from }) => {
-  const res = await fetch('/api/messages/mark-seen', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ from }) })
+  const res = await fetch(getApiUrl('/api/messages/mark-seen'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ from }) })
   const data = await res.json()
   if (!data.success) throw new Error(data.message || 'Failed')
   return { from }
