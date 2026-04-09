@@ -2,12 +2,51 @@ import Message from "../modals/Message.js";
 import User from "../modals/User.js";
 import ImageKit from "../configs/imageKit.js";
 import fs from 'fs'
+import crypto from 'crypto'
 
 // In-memory map for Server-Sent Events (SSE) connections: userId -> res
 const sseClients = new Map();
 
+// Short-lived tokens for SSE handshake: token -> { userId, expires }
+const sseTokens = new Map();
+
+// Track token request timestamps per user for simple rate-limiting: userId -> [timestamp]
+const sseTokenRequests = new Map();
+
+const TOKEN_TTL_SEC = parseInt(process.env.SSE_TOKEN_TTL_SEC || '60', 10); // default 60s
+const TOKEN_RATE_LIMIT_PER_MIN = parseInt(process.env.SSE_TOKEN_RATE_PER_MIN || '6', 10);
+
+// Cleanup expired tokens periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [t, info] of sseTokens.entries()) {
+    if (info.expires <= now) sseTokens.delete(t);
+  }
+  // cleanup old request timestamps older than 2 minutes
+  for (const [userId, arr] of sseTokenRequests.entries()) {
+    const filtered = arr.filter(ts => ts > now - 2 * 60 * 1000);
+    if (filtered.length) sseTokenRequests.set(userId, filtered); else sseTokenRequests.delete(userId);
+  }
+}, 30 * 1000);
+
 export const serverSideEventController = (req, res) => {
-  const { userId } = req.auth();
+  // Prefer authenticated request, otherwise validate short-lived token from query
+  let userId;
+  try {
+    userId = req.auth().userId;
+  } catch (e) {
+    const token = req.query.token;
+    if (!token) return res.status(401).json({ success: false, message: 'not authenticated' });
+    const info = sseTokens.get(token);
+    if (!info) return res.status(401).json({ success: false, message: 'invalid or expired token' });
+    if (info.expires <= Date.now()) {
+      sseTokens.delete(token);
+      return res.status(401).json({ success: false, message: 'invalid or expired token' });
+    }
+    userId = info.userId;
+    // consume token (single-use)
+    sseTokens.delete(token);
+  }
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -23,6 +62,33 @@ export const serverSideEventController = (req, res) => {
     sseClients.delete(userId);
   });
 };
+
+// Issue a short-lived SSE token for EventSource handshake. Protected endpoint.
+export const issueSseToken = (req, res) => {
+  try {
+    const { userId } = req.auth();
+    if (!userId) return res.status(401).json({ success: false, message: 'not authenticated' });
+
+    // rate-limit: allow only TOKEN_RATE_LIMIT_PER_MIN requests per minute
+    const now = Date.now();
+    const windowStart = now - 60 * 1000;
+    const arr = sseTokenRequests.get(userId) || [];
+    const recent = arr.filter(ts => ts > windowStart);
+    if (recent.length >= TOKEN_RATE_LIMIT_PER_MIN) {
+      return res.status(429).json({ success: false, message: 'rate limit exceeded' });
+    }
+    recent.push(now);
+    sseTokenRequests.set(userId, recent);
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = Date.now() + TOKEN_TTL_SEC * 1000;
+    sseTokens.set(token, { userId, expires });
+    return res.json({ success: true, token, expiresIn: TOKEN_TTL_SEC });
+  } catch (error) {
+    console.error(error);
+    return res.json({ success: false, message: error.message });
+  }
+}
 
 // Helper to push message via SSE if recipient connected
 const pushSSE = (toUserId, payload) => {

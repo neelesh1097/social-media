@@ -52,3 +52,37 @@ export const getUserConnections = async (req, res) => {
   }
 
 }
+
+// Accept a connection request
+export const acceptConnectionRequest = async (req, res) => {
+  try {
+    const { userId } = req.auth();
+    const { fromUserId } = req.body;
+
+    if (!fromUserId) return res.json({ success: false, message: 'fromUserId required' });
+
+    const recipient = await User.findById(userId);
+    const sender = await User.findById(fromUserId);
+
+    if (!recipient || !sender) return res.json({ success: false, message: 'user not found' });
+
+    // Check that a pending request exists (sender id in recipient.connections)
+    const pending = recipient.connections && recipient.connections.includes(fromUserId);
+    if (!pending) return res.json({ success: false, message: 'connection not found' });
+
+    // Ensure both users have each other in connections (dedupe)
+    recipient.connections = recipient.connections || [];
+    if (!recipient.connections.includes(fromUserId)) recipient.connections.push(fromUserId);
+
+    sender.connections = sender.connections || [];
+    if (!sender.connections.includes(userId)) sender.connections.push(userId);
+
+    await recipient.save();
+    await sender.save();
+
+    return res.json({ success: true, message: 'connection accepted successfully' });
+  } catch (error) {
+    console.error(error);
+    return res.json({ success: false, message: error.message });
+  }
+}
