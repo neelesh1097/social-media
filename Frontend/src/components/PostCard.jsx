@@ -1,18 +1,29 @@
 import React,{useState} from 'react'
 import { BadgeCheck, Heart ,MessageCircle ,Share2} from 'lucide-react'
 import moment from 'moment'
-import { dummyUserData } from '../assets/assets'
+import { useUser } from '@clerk/react'
 import {useNavigate} from 'react-router-dom'
+import { getApiUrl, apiFetch } from '../lib/api'
 
 const PostCard = ({ post }) => {
 
     const postWithHashtags = post.content ? post.content.replace(/(#\w+)/g, '<span class="text-indigo-600">$1</span>') : ''
-    const [likes, setLikes] = useState(post.likes_count || [])
-    const currentUser = dummyUserData
+    const [likes, setLikes] = useState(post.likes || [])
+    const { user: currentUser } = useUser()
 
-    const handleLike = async (params) => {
-
-    }
+        const handleLike = async () => {
+            try {
+                const res = await apiFetch('/api/post/like', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postId: post._id }) })
+                const data = await res.json()
+                if (data.success) {
+                    // toggle local
+                    setLikes((prev) => {
+                        if (prev.includes(currentUser.id)) return prev.filter(id => id !== currentUser.id)
+                        return [currentUser.id, ...prev]
+                    })
+                }
+            } catch (e) { console.error(e) }
+        }
 
     const navigate = useNavigate()
     return (

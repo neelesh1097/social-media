@@ -1,6 +1,7 @@
 import ImageKit from "../configs/imageKit.js"
 import User from "../modals/User.js"
 import fs from 'fs'
+import Post from '../modals/Post.js'
 
 // Get user data using userid
 
@@ -165,5 +166,23 @@ export const unfollowUser  = async (req , res) => {
     } catch (error) {
         console.log(error);
         res.json({success: false, message:error.message})
+    }
+}
+
+// Get another user's profile and their posts
+export const getUserProfiles = async (req, res) => {
+    try {
+        const { profileId } = req.body;
+        if (!profileId) return res.json({ success: false, message: 'profileId required' });
+
+        const profile = await User.findById(profileId).select('-__v -createdAt -updatedAt');
+        if (!profile) return res.json({ success: false, message: 'profile not found' });
+
+        const posts = await Post.find({ user: profileId }).populate('user').sort({ createdAt: -1 });
+
+        return res.json({ success: true, profile, posts });
+    } catch (error) {
+        console.error(error);
+        return res.json({ success: false, message: error.message });
     }
 }

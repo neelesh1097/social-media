@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { dummyStoriesData } from '../assets/assets'
+import { getApiUrl, apiFetch } from '../lib/api'
 import { Plus } from 'lucide-react'
 import moment from 'moment'
 import StoryModal from './StoryModal'
@@ -8,12 +8,16 @@ import StoryViewer from './StoryViewer'
 
 function StoriesBar() {
 
-    const [stories, setStories] = useState([])
+ const [stories, setStories] = useState([])
  const [showModal, setShowModal] = useState(false)
  const [viewStory, setViewStory] = useState(null)
 
     const fetchStories = async () => {
-        setStories(dummyStoriesData)
+        try {
+            const res = await apiFetch('/api/stories/list')
+            const data = await res.json()
+            if (data.success) setStories(data.stories || [])
+        } catch (e) { console.error(e) }
     }
 
     useEffect(() => {

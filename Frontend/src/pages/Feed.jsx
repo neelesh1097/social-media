@@ -1,5 +1,6 @@
 import React ,{useEffect , useState} from 'react'
-import { dummyPostsData,assets } from '../assets/assets'
+import { assets } from '../assets/assets'
+import { apiFetch } from '../lib/api'
 import Loading from '../components/Loading'
 import StoriesBar from '../components/StoriesBar'
 import PostCard from '../components/PostCard'
@@ -11,7 +12,12 @@ const feed = () => {
   const [loading, setLoading] = useState(true)
 
   const fetchFeeds = async () => {
-    setfeeds(dummyPostsData)
+    try {
+      const res = await apiFetch('/api/post/feed')
+      const data = await res.json()
+      if (data.success) setfeeds(data.posts || [])
+      else setfeeds([])
+    } catch (e) { console.error(e); setfeeds([]) }
     setLoading(false);
   }
 

@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { ArrowLeft,TextIcon,Upload,Sparkle } from 'lucide-react'
 import {toast} from 'react-hot-toast'
+import { useUser } from '@clerk/react'
+import { getApiUrl, apiFetch } from '../lib/api'
 
 const StoryModal = ({ setShowModal, fetchStories }) => {
 
@@ -24,6 +26,7 @@ const StoryModal = ({ setShowModal, fetchStories }) => {
     const [text, setText] = useState("")
     const [media, setMedia] = useState(null)
     const [previewUrl, setPreviewUrl] = useState(null)
+    const { user } = useUser()
 
     const handleMediaUpload = (e) => {
         const file = e.target.files?.[0]
@@ -34,8 +37,27 @@ const StoryModal = ({ setShowModal, fetchStories }) => {
     }
 
     const handleCreateStory = async () => {
+        try {
+            const form = new FormData()
+            form.append('content', text)
+            if (media) form.append('media', media)
+            form.append('background', background)
 
-
+            const res = await apiFetch('/api/stories/add', { method: 'POST', body: form })
+            const data = await res.json()
+            if (data.success) {
+                // refresh stories list if provided
+                if (typeof fetchStories === 'function') fetchStories()
+                setShowModal(false)
+                toast.success('Story created!')
+                return data.story
+            }
+            throw new Error(data.message || 'failed')
+        } catch (e) {
+            toast.error(e.message)
+            console.error(e)
+            throw e
+        }
     }
 
     return (

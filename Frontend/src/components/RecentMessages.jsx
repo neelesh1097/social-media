@@ -3,8 +3,9 @@ import { dummyRecentMessagesData } from '../assets/assets'
 import {Link} from 'react-router-dom'
 import moment from'moment';
 import { useAuth } from '@clerk/react'
+import { getApiUrl } from '../lib/api'
 
-const API_RECENT = '/api/messages/recent'
+const API_RECENT = getApiUrl('/api/messages/recent')
 
 const RecentMessages = () => {
 

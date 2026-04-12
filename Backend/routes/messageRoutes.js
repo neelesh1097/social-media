@@ -1,11 +1,12 @@
 import express from 'express';
-import { serverSideEventController, sendMessage, markMessagesAsSeen, getUserRecentMessages, getConversation } from '../controllers/messageController.js';
+import { serverSideEventController, sendMessage, markMessagesAsSeen, getUserRecentMessages, getConversation, issueSseToken } from '../controllers/messageController.js';
 import { protect } from '../middleware/auth.js';
 import { upload } from '../configs/multer.js';
 
 const router = express.Router();
 
-router.get('/sse', protect, serverSideEventController);
+router.post('/sse/token', protect, issueSseToken);
+router.get('/sse', serverSideEventController);
 router.post('/send', protect, upload.array('attachments'), sendMessage);
 router.post('/mark-seen', protect, markMessagesAsSeen);
 router.get('/recent', protect, getUserRecentMessages);

@@ -1,6 +1,7 @@
 import { Inngest } from "inngest";
 import User from "../modals/User.js";
 import Message from "../modals/Message.js";
+import sendEmail from "../configs/nodeMailer.js";
 
 // Create a client to send and receive events
 //inggest function
@@ -63,11 +64,44 @@ const syncUserDeletion = inngest.createFunction(
 // Send a reminder when a connection request is pending
 const sendNewConnectionRequestReminder = inngest.createFunction(
     { id: 'connection-request-reminder', triggers: { event: 'connection.request.sent' } },
-    async ({ event }) => {
+    async ({ event, step }) => {
         const { from, to } = event.data || {};
-        // Placeholder: in real app send email; here just log
-        console.log(`Connection request sent from ${from} to ${to}. Scheduling reminder.`);
-        // Example: could re-emit an event or call an email provider
+        try {
+            const sender = await User.findById(from);
+            const receiver = await User.findById(to);
+            if (!receiver) return console.log('receiver not found for connection reminder');
+
+            // Immediate email notifying of new connection request
+            const subject = 'New connection request';
+            const body = `<p>Hi ${receiver.full_name || receiver.username},</p>
+            <p>${sender.full_name || sender.username} has sent you a connection request.</p>
+            <p><a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/profile">View requests</a></p>`;
+
+            try { await sendEmail({ to: receiver.email, subject, html: body }); } catch (e) { console.error('sendEmail immediate failed', e); }
+
+            // Schedule a reminder after 24 hours: sleep until then, then check status and send reminder only if still pending
+            const when = Date.now() + (24 * 60 * 60 * 1000);
+            await step.sleepUntil(new Date(when));
+
+            await step.run(async () => {
+                const freshReceiver = await User.findById(to);
+                if (!freshReceiver) return { message: 'receiver gone' };
+                // If sender id still present in receiver.connections, it's still pending
+                const stillPending = freshReceiver.connections && freshReceiver.connections.includes(from);
+                if (!stillPending) return { message: 'already accepted or removed' };
+
+                const remindSubject = 'Reminder: connection request pending';
+                const remindBody = `<p>Hi ${freshReceiver.full_name || freshReceiver.username},</p>
+                <p>This is a reminder: ${sender.full_name || sender.username} sent you a connection request and it's still pending.</p>
+                <p><a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/profile">View requests</a></p>`;
+                try { await sendEmail({ to: freshReceiver.email, subject: remindSubject, html: remindBody }); } catch (e) { console.error('sendEmail reminder failed', e); }
+
+                return { message: 'reminder sent' };
+            })
+
+        } catch (error) {
+            console.error('connection reminder job error', error);
+        }
     }
 )
 
